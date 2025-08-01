@@ -39,9 +39,26 @@ export const parseCSV = (file: File): Promise<any[]> => {
       header: true,
       skipEmptyLines: true,
       encoding: 'UTF-8',
+      transformHeader: (header: string) => {
+        // Clean up header names
+        return header.trim();
+      },
       complete: (results) => {
         if (results.errors.length > 0) {
-          reject(new Error(`Erro ao processar CSV: ${results.errors[0].message}`));
+          console.warn('CSV parsing warnings:', results.errors);
+          // Filter out field count errors and only fail on serious parsing errors
+          const criticalErrors = results.errors.filter(error => 
+            error.type === 'Quotes' || 
+            error.type === 'Delimiter' ||
+            (error.type === 'FieldMismatch' && error.code === 'TooManyFields' && results.data.length === 0)
+          );
+          
+          if (criticalErrors.length > 0) {
+            reject(new Error(`Erro ao processar CSV: ${criticalErrors[0].message}`));
+          } else {
+            // Continue with data even if there are field mismatches
+            resolve(results.data);
+          }
         } else {
           resolve(results.data);
         }
