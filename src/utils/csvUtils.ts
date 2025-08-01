@@ -74,36 +74,52 @@ export const parseCSV = (file: File): Promise<any[]> => {
 export const normalizeFieldNames = (data: any[]): any[] => {
   console.log('=== NORMALIZING FIELD NAMES ===');
   
-  return data.map((row, rowIndex) => {
+  if (data.length === 0) return data;
+  
+  // First, let's examine the actual content to understand the structure
+  const firstRow = data[0];
+  console.log('First row content:', firstRow);
+  
+  // Create a mapping based on content analysis
+  const fieldMapping: { [key: string]: string } = {};
+  
+  Object.keys(firstRow).forEach(key => {
+    const value = firstRow[key];
+    const valueStr = String(value).toLowerCase().trim();
+    
+    console.log(`Analyzing field "${key}" with value "${valueStr}"`);
+    
+    // Map based on header content
+    if (valueStr.includes('cpf') || valueStr.includes('documento') || key === '3') {
+      fieldMapping[key] = 'cpf';
+      console.log(`Mapped "${key}" to "cpf"`);
+    } else if (valueStr.includes('nome') || valueStr.includes('name') || key === '' || key === '0') {
+      fieldMapping[key] = 'nome';
+      console.log(`Mapped "${key}" to "nome"`);
+    } else if (valueStr.includes('email') || valueStr.includes('e-mail') || key === '1') {
+      fieldMapping[key] = 'email';
+      console.log(`Mapped "${key}" to "email"`);
+    } else if (valueStr.includes('telefone') || valueStr.includes('phone') || valueStr.includes('fone') || key === '2') {
+      fieldMapping[key] = 'telefone';
+      console.log(`Mapped "${key}" to "telefone"`);
+    } else {
+      // Keep original key but normalized
+      fieldMapping[key] = key.toLowerCase().replace(/\s+/g, '').replace(/[-_]/g, '');
+    }
+  });
+  
+  console.log('Final field mapping:', fieldMapping);
+  
+  return data.slice(1).map((row, rowIndex) => { // Skip header row
     const normalizedRow: any = {};
     
-    if (rowIndex === 0) {
-      console.log('Original field names:', Object.keys(row));
-    }
-    
     Object.keys(row).forEach(key => {
-      const originalKey = key;
-      let normalizedKey = key.toLowerCase()
-        .replace(/\s+/g, '')
-        .replace(/[-_]/g, '')
-        .replace('cpfcnpj', 'cpf')
-        .replace('cpf/cnpj', 'cpf')
-        .replace('documento', 'cpf');
-      
-      // Additional CPF field mappings
-      if (normalizedKey.includes('cpf') || normalizedKey.includes('doc') || normalizedKey.includes('cnpj')) {
-        normalizedKey = 'cpf';
-      }
-      
-      if (rowIndex === 0) {
-        console.log(`Field mapping: "${originalKey}" -> "${normalizedKey}"`);
-      }
-      
-      normalizedRow[normalizedKey] = row[key];
+      const mappedKey = fieldMapping[key] || key;
+      normalizedRow[mappedKey] = row[key];
     });
     
-    if (rowIndex === 0) {
-      console.log('Normalized field names:', Object.keys(normalizedRow));
+    if (rowIndex < 3) {
+      console.log(`Sample normalized row ${rowIndex}:`, normalizedRow);
     }
     
     return normalizedRow;
