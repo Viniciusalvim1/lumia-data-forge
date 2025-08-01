@@ -2,15 +2,17 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileUpload } from "@/components/ui/file-upload";
+import { CPFInput } from "@/components/ui/cpf-input";
 import { StepIndicator } from "@/components/ui/step-indicator";
 import { DataPreview } from "@/components/ui/data-preview";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Download, Database, FileSpreadsheet, Zap } from "lucide-react";
+import { Loader2, Download, Database, FileSpreadsheet, Zap, FileText } from "lucide-react";
 import { 
   parseCSV, 
   normalizeFieldNames, 
   enrichData, 
   downloadEnrichedCSV,
+  parseCPFList,
   type MasterRecord,
   type WorkRecord,
   type EnrichedRecord
@@ -18,7 +20,7 @@ import {
 
 export const LumiaDataEnricher = () => {
   const [masterFile, setMasterFile] = useState<File | null>(null);
-  const [workFile, setWorkFile] = useState<File | null>(null);
+  const [cpfList, setCpfList] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [enrichedData, setEnrichedData] = useState<EnrichedRecord[]>([]);
   const [matchedRecords, setMatchedRecords] = useState(0);
@@ -35,8 +37,8 @@ export const LumiaDataEnricher = () => {
     },
     {
       id: 2,
-      title: "Upload da Base de Trabalho",
-      description: "Arquivo que será enriquecido (Nome e CPF)"
+      title: "Lista de CPFs",
+      description: "Cole a coluna de CPFs que será enriquecida"
     },
     {
       id: 3,
@@ -62,24 +64,24 @@ export const LumiaDataEnricher = () => {
     });
   };
 
-  const handleWorkFileSelect = (file: File) => {
-    setWorkFile(file);
+  const handleCPFListSubmit = (cpfs: string[]) => {
+    setCpfList(cpfs);
     if (!completedSteps.includes(2)) {
       setCompletedSteps([...completedSteps, 2]);
     }
     setCurrentStep(3);
     toast({
-      title: "Base de Trabalho carregada",
-      description: `Arquivo ${file.name} selecionado com sucesso.`,
+      title: "Lista de CPFs carregada",
+      description: `${cpfs.length} CPFs carregados com sucesso.`,
     });
   };
 
   const processData = async () => {
-    if (!masterFile || !workFile) {
+    if (!masterFile || cpfList.length === 0) {
       toast({
         variant: "destructive",
         title: "Erro",
-        description: "Selecione os dois arquivos antes de processar.",
+        description: "Selecione o arquivo mestre e insira a lista de CPFs antes de processar.",
       });
       return;
     }
@@ -87,20 +89,19 @@ export const LumiaDataEnricher = () => {
     setIsProcessing(true);
     
     try {
-      // Parse both CSV files
-      const [masterData, workData] = await Promise.all([
-        parseCSV(masterFile),
-        parseCSV(workFile)
-      ]);
+      // Parse master CSV file
+      const masterData = await parseCSV(masterFile);
 
-      // Normalize field names
+      // Normalize field names for master data
       const normalizedMasterData = normalizeFieldNames(masterData) as MasterRecord[];
-      const normalizedWorkData = normalizeFieldNames(workData) as WorkRecord[];
+      
+      // Convert CPF list to WorkRecord format
+      const workData = parseCPFList(cpfList.join('\n'));
 
       // Enrich the data
       const { enrichedData: result, matchedRecords: matches } = enrichData(
         normalizedMasterData,
-        normalizedWorkData
+        workData
       );
 
       setEnrichedData(result);
@@ -148,7 +149,7 @@ export const LumiaDataEnricher = () => {
 
   const reset = () => {
     setMasterFile(null);
-    setWorkFile(null);
+    setCpfList([]);
     setEnrichedData([]);
     setMatchedRecords(0);
     setCurrentStep(1);
@@ -219,17 +220,17 @@ export const LumiaDataEnricher = () => {
               <Card className="h-fit">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <FileSpreadsheet className="w-5 h-5 text-primary" />
-                    Etapa 2 - Base de Trabalho
+                    <FileText className="w-5 h-5 text-primary" />
+                    Etapa 2 - Lista de CPFs
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <FileUpload
-                    label="Base de Trabalho"
-                    description="Arquivo que será enriquecido (Nome e CPF)"
-                    onFileSelect={handleWorkFileSelect}
-                    file={workFile}
-                    onRemove={() => setWorkFile(null)}
+                  <CPFInput
+                    label="Lista de CPFs"
+                    description="Cole aqui a coluna de CPFs que será enriquecida"
+                    onCPFListSubmit={handleCPFListSubmit}
+                    cpfList={cpfList}
+                    onRemove={() => setCpfList([])}
                   />
                 </CardContent>
               </Card>
@@ -243,7 +244,7 @@ export const LumiaDataEnricher = () => {
                     variant="lumia"
                     size="lg"
                     onClick={processData}
-                    disabled={!masterFile || !workFile || isProcessing}
+                    disabled={!masterFile || cpfList.length === 0 || isProcessing}
                     className="w-full sm:w-auto min-w-[200px]"
                   >
                     {isProcessing ? (

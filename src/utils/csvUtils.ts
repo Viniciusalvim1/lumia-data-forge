@@ -16,13 +16,12 @@ export interface MasterRecord {
 }
 
 export interface WorkRecord {
-  nome: string;
   cpf: string;
 }
 
 export interface EnrichedRecord {
-  nome: string;
   cpf: string;
+  nome: string;
   email: string;
   telefone: string;
 }
@@ -72,6 +71,21 @@ export const normalizeFieldNames = (data: any[]): any[] => {
   });
 };
 
+// Parse CPF list from text
+export const parseCPFList = (text: string): WorkRecord[] => {
+  const lines = text.split('\n');
+  const cpfs: WorkRecord[] = [];
+  
+  lines.forEach(line => {
+    const cleanLine = line.trim();
+    if (cleanLine) {
+      cpfs.push({ cpf: cleanLine });
+    }
+  });
+  
+  return cpfs;
+};
+
 // Process and enrich data
 export const enrichData = (masterData: MasterRecord[], workData: WorkRecord[]): {
   enrichedData: EnrichedRecord[];
@@ -96,15 +110,15 @@ export const enrichData = (masterData: MasterRecord[], workData: WorkRecord[]): 
     if (masterRecord) {
       matchedRecords++;
       return {
-        nome: workRecord.nome,
         cpf: workRecord.cpf,
+        nome: masterRecord.nome || '',
         email: masterRecord.email || '',
         telefone: masterRecord.telefone || ''
       };
     } else {
       return {
-        nome: workRecord.nome,
         cpf: workRecord.cpf,
+        nome: '',
         email: '',
         telefone: ''
       };
