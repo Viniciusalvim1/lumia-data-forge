@@ -72,17 +72,39 @@ export const parseCSV = (file: File): Promise<any[]> => {
 
 // Normalize field names to handle different formats
 export const normalizeFieldNames = (data: any[]): any[] => {
-  return data.map(row => {
+  console.log('=== NORMALIZING FIELD NAMES ===');
+  
+  return data.map((row, rowIndex) => {
     const normalizedRow: any = {};
     
+    if (rowIndex === 0) {
+      console.log('Original field names:', Object.keys(row));
+    }
+    
     Object.keys(row).forEach(key => {
-      const normalizedKey = key.toLowerCase()
+      const originalKey = key;
+      let normalizedKey = key.toLowerCase()
         .replace(/\s+/g, '')
         .replace(/[-_]/g, '')
-        .replace('cpfcnpj', 'cpf');
+        .replace('cpfcnpj', 'cpf')
+        .replace('cpf/cnpj', 'cpf')
+        .replace('documento', 'cpf');
+      
+      // Additional CPF field mappings
+      if (normalizedKey.includes('cpf') || normalizedKey.includes('doc') || normalizedKey.includes('cnpj')) {
+        normalizedKey = 'cpf';
+      }
+      
+      if (rowIndex === 0) {
+        console.log(`Field mapping: "${originalKey}" -> "${normalizedKey}"`);
+      }
       
       normalizedRow[normalizedKey] = row[key];
     });
+    
+    if (rowIndex === 0) {
+      console.log('Normalized field names:', Object.keys(normalizedRow));
+    }
     
     return normalizedRow;
   });
@@ -108,24 +130,48 @@ export const enrichData = (masterData: MasterRecord[], workData: WorkRecord[]): 
   enrichedData: EnrichedRecord[];
   matchedRecords: number;
 } => {
+  console.log('=== DEBUGGING ENRICHMENT PROCESS ===');
+  console.log('Master data count:', masterData.length);
+  console.log('Work data count:', workData.length);
+  
+  // Show sample master data
+  if (masterData.length > 0) {
+    console.log('Sample master record:', masterData[0]);
+    console.log('Master CPF field:', masterData[0].cpf);
+  }
+  
+  // Show sample work data
+  if (workData.length > 0) {
+    console.log('Sample work record:', workData[0]);
+    console.log('Work CPF field:', workData[0].cpf);
+  }
+
   // Create a lookup map using normalized CPF
   const masterLookup = new Map<string, MasterRecord>();
   
-  masterData.forEach(record => {
+  masterData.forEach((record, index) => {
     const normalizedCPF = normalizeCPF(record.cpf);
+    console.log(`Master record ${index}: original CPF = "${record.cpf}", normalized = "${normalizedCPF}"`);
     if (normalizedCPF) {
       masterLookup.set(normalizedCPF, record);
     }
   });
 
+  console.log('Master lookup map size:', masterLookup.size);
+  console.log('Master lookup keys:', Array.from(masterLookup.keys()).slice(0, 5));
+
   let matchedRecords = 0;
   
-  const enrichedData: EnrichedRecord[] = workData.map(workRecord => {
+  const enrichedData: EnrichedRecord[] = workData.map((workRecord, index) => {
     const normalizedCPF = normalizeCPF(workRecord.cpf);
+    console.log(`Work record ${index}: original CPF = "${workRecord.cpf}", normalized = "${normalizedCPF}"`);
+    
     const masterRecord = masterLookup.get(normalizedCPF);
+    console.log(`Match found for ${normalizedCPF}:`, !!masterRecord);
     
     if (masterRecord) {
       matchedRecords++;
+      console.log(`✓ Match ${matchedRecords}: CPF ${normalizedCPF} found in master`);
       return {
         cpf: workRecord.cpf,
         nome: masterRecord.nome || '',
@@ -133,6 +179,7 @@ export const enrichData = (masterData: MasterRecord[], workData: WorkRecord[]): 
         telefone: masterRecord.telefone || ''
       };
     } else {
+      console.log(`✗ No match: CPF ${normalizedCPF} not found in master`);
       return {
         cpf: workRecord.cpf,
         nome: '',
@@ -142,6 +189,9 @@ export const enrichData = (masterData: MasterRecord[], workData: WorkRecord[]): 
     }
   });
 
+  console.log(`=== ENRICHMENT COMPLETE ===`);
+  console.log(`Total matches: ${matchedRecords} out of ${workData.length}`);
+  
   return { enrichedData, matchedRecords };
 };
 
